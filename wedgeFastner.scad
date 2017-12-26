@@ -1,135 +1,128 @@
-// Configuration
-PIN = 1;
-PEG = 2;
-WHOLE = 0;
+//! Wedge retention fastener pin
+/*!
+A fully parametric wedge pin for a printable fastener.
 
-PARTNO = WHOLE; // part number
-$fn=50; // Resolution
+\param radius Ideal radius of the shaft of the peg
+*/
 
-// Pin Info
-handleRadius = 8;
-handleDepth = 2.5;
-
-// Hole Info
-shaftLength = 10;
-shaftRadius = 4;
-
-shaftHiltRadius = 6;
-
-
-// Tolerances
-clearance = 0.2; // Clearance between mating parts
-wedgeClearance = 0.15; // Clearance to use for the wedge
-
-
-// Advanced Configuration
-shaftEndProtrusion = 3;
-wedgeWidth = 0.3; // Percentage of shaftRadius
-wedgeTipWidth = 0.7; // Percentage of shaftRadius
-wedgeTipMinimum = 0.45; // Minimum wedge tip with because it prints flat when it's thinner than the nozzle
-
-// Calculations
-cylH = shaftLength+shaftEndProtrusion-shaftRadius;
-wedgeCutPosition = wedgeTipMinimum/(((wedgeWidth*2)*shaftRadius)/shaftLength);
-
-
-module handle(mountRadius=shaftHiltRadius,mountDepth=handleDepth) {
-    translate ([0,0,-handleDepth*2-mountDepth]) union() {
-	cylinder(h=handleDepth,r=handleRadius);
-	translate([0,0,handleDepth]) {
-	    cylinder(h=handleDepth*0.3,r1=handleRadius,r2=mountRadius*0.75);
-	}
-	translate([0,0,handleDepth*1.3]) {
-	    cylinder(h=handleDepth*0.4,r=mountRadius*0.75);
-	}
-	translate([0,0,handleDepth*1.70]){
-	    cylinder(h=handleDepth*0.3,r1=mountRadius*0.75,r2=mountRadius);
-	}
-	translate([0,0,handleDepth*2]){
-	    cylinder(h=mountDepth,r=mountRadius);
-	}
-    }
-}
-
-
-module wedge(cutSize=false) {
-    add = cutSize ? wedgeClearance : 0;
-    mult = cutSize ? 2 : 1;
-    size = (shaftRadius-clearance)*mult;
-    wedgePoints = [
-      [ -size,  -shaftRadius*wedgeWidth-add,  0 ],  //0
-      [ size,  -shaftRadius*wedgeWidth-add,  0 ],  //1
-      [ size,  shaftRadius*wedgeWidth+add,  0 ],  //2
-      [ -size,  shaftRadius*wedgeWidth+add,  0 ],  //3
-      [ -shaftRadius*wedgeTipWidth*mult,  0,  shaftLength+add ],  //0
-      [ shaftRadius*wedgeTipWidth*mult,  0,  shaftLength+add ]];  //3
-      
-    wedgeFaces = [
-      [0,1,2,3],  // bottom
-      [4,5,1,0],  // front
-    
-      [5,2,1],  // right
-      [5,4,3,2],  // back
-      [4,0,3]]; // left
-    
-    difference() {
-	polyhedron( wedgePoints, wedgeFaces );
-	if(!cutSize) {
-	    translate([0,0,shaftLength*1.5-wedgeCutPosition-(cutSize?0:clearance)]) cube(size=[shaftRadius*2,shaftRadius*2,shaftLength],center=true);
-	}
-    }
-}
-
-
-module splay() {
-    difference() {
+module wf_pin(radius = 2, extra = 3,clearance = 0.2, wedgeWidth = 0.3, 
+           radiusTip = 0.7, width = 0.3, wedgeClearance = 0.15, length = 10, 
+	   widthLimit = 0.4, cutSize=false, handleDepth = 3, handleRadius = 5, 
+	   hiltDepth = 2, hiltRadius = 4 ) {
+	actual = length+extra-radius;
+	difference() {
 	union() {
-	    cylinder(h=cylH,r=shaftRadius-clearance);
-	    translate([0,0,cylH]) sphere(shaftRadius-clearance);
-	}
-	translate([0,0,cylH]) {
-	    rotate ([0,180,0]) wedge(true);
-	    translate([0,0,shaftRadius/2*0.999]) cube([shaftRadius*4,(shaftRadius*wedgeWidth+wedgeClearance)*2,shaftRadius],center=true);
-	}
-    }
-}
-
-module pin(){
-    difference() {
-	union() {
-	    wedge();
-	    handle(mountDepth=1.5);
+		wf_wedge(radius, radiusTip, width, wedgeClearance, length, 
+		      widthLimit);
+		wf_handle(handleDepth, handleRadius, hiltDepth, hiltRadius);
 	}
 	
+	// Create splay hole
 	difference() {
-	    union() {
-		translate([0,0,-shaftEndProtrusion+shaftRadius+clearance]) sphere(shaftRadius+clearance);
-		translate([0,0,-shaftEndProtrusion+shaftRadius+clearance]) cylinder(h=cylH,r=shaftRadius+clearance);
-	    }
-	    cube([shaftRadius*4,(shaftRadius*wedgeWidth)*2,cylH*2],center=true);
+		union() {
+			translate([0,0,-extra+radius+clearance]) 
+				sphere(radius+clearance);
+			translate([0,0,-extra+radius+clearance]) 
+				cylinder(h=actual,r=radius+clearance);
+		}
+		cube([radius*4,(radius*wedgeWidth)*2,actual*2],center=true);
 	}
-    }
-}
-
-module peg() {
-    union() {
-	splay();
-	handle(mountDepth=1.5);
-    }
+	}
 }
 
 
-if (PARTNO == 1) pin();
-if (PARTNO == 2) peg();
+module wf_peg(radius = 2, length = 10, clearance = 0.2, extra = 3, 
+           wedgewidth = 0.3, wedgeClearance = 0.15 ) {
+	union() {
+		wf_splay(radius, length, clearance, extra, wedgewidth, 
+		      wedgeClearance );
+		wf_handle(mountDepth=1.5);
+	}
+}
 
-// optionally use 0 for whole object
-if (PARTNO == 0) {
-    translate( [0,-10,0] ) {
-	pin();
-    }
 
-    translate( [0,10,0] ) {
-	peg();
-    }
+module wf_handle( depth = 3, radius = 5, hiltDepth = 2, hiltRadius = 4 ) {
+	translate ([0,0,-depth*2-hiltDepth]) union() {
+	cylinder(h=depth,r=radius);
+	translate([0,0,depth]) {
+		cylinder(h=depth*0.3,r1=radius,r2=hiltRadius*0.75);
+	}
+	translate([0,0,depth*1.3]) {
+		cylinder(h=depth*0.4,r=hiltRadius*0.75);
+	}
+	translate([0,0,depth*1.70]){
+		cylinder(h=depth*0.3,r1=hiltRadius*0.75,r2=hiltRadius);
+	}
+	translate([0,0,depth*2]){
+		cylinder(h=hiltDepth,r=hiltRadius);
+	}
+	}
+}
+
+
+module wf_wedge(radius = 2, radiusTip = 0.7, width = 0.3, clearance = 0.15, 
+             length = 10, widthLimit = 0.4, cutSize=false, ) {
+	add = cutSize ? clearance : 0;
+	mult = cutSize ? 2 : 1;
+	size = (radius-clearance)*mult;
+	cutPosition = widthLimit/(((width*2)*radius)/length);
+
+	points = [
+		[ -size, -radius*width-add,  0 ],
+		[ size, -radius*width-add,  0 ],
+		[ size, radius*width+add,  0 ],
+		[ -size, radius*width+add,  0 ],
+		[ -radius*radiusTip*mult,  0, length+add ],
+		[ radius*radiusTip*mult,  0, length+add ]
+	];
+	  
+	faces = [
+		[0,1,2,3],
+		[4,5,1,0],
+		[5,2,1],
+		[5,4,3,2],
+		[4,0,3]
+	 ];
+	
+	difference() {
+		polyhedron( points, faces );
+		if(!cutSize) {
+			translate([0,0,
+			          length*1.5-cutPosition-(cutSize?0:clearance)]) 
+				cube(size=[radius*2,radius*2,length],
+				     center=true);
+		}
+	}
+}
+
+
+module wf_splay(radius = 2, length = 10, clearance = 0.2, extra = 3, 
+             radiusTip = 0.7, wedgeWidth = 0.3, widthLimit = 0.4, 
+	     wedgeClearance = 0.15 ) {
+	actual = length+extra-radius;
+	difference() {
+	union() {
+		cylinder(h=actual,r=radius-clearance);
+		translate([0,0,actual]) sphere(radius-clearance);
+	}
+	translate([0,0,actual]) {
+		rotate ([0,180,0]) 
+			wf_wedge(radius, radiusTip, wedgeWidth, wedgeClearance, 
+			      length, widthLimit, cutSize = true);
+		translate([0,0,radius/2*0.999]) 
+			cube([radius*4,(radius*wedgeWidth+wedgeClearance)*2,
+			     radius],center=true);
+	}
+	}
+}
+
+$fn=50; // Resolution
+
+translate( [0,-10,0] ) {
+wf_pin(length=10);
+}
+
+translate( [0,10,0] ) {
+wf_peg(length = 10);
 }
 
